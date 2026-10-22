@@ -1208,6 +1208,7 @@
       <svg class="icon" viewBox="0 0 24 24"><path d="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z"/></svg>
       <span>New</span>
     </button>
+    <button class="btn" id="btnLoadExamples" title="Load Polyglot Demo Notebook">📚 Examples</button>
     <button class="btn" id="btnOpenNotebook" title="Open notebook file (.json, .ipynb)">
       <svg class="icon" viewBox="0 0 24 24"><path d="M10 4H4c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V8c0-1.1-.9-2-2-2h-8l-2-2z"/></svg>
       <span>Open</span>
@@ -1672,6 +1673,16 @@
         createCell('yaml', 'apiVersion: apps/v1\nkind: Deployment\nmetadata:\n  name: notebook-service\n  labels:\n    app: notebook-studio\nspec:\n  replicas: 3\n  selector:\n    matchLabels:\n      app: notebook-studio')
       ]
     };
+  }
+
+  function loadStarterNotebook() {
+    const demoNb = createNotebook('welcome-demo.nb');
+    notebooks.push(demoNb);
+    activeNotebookId = demoNb.id;
+    saveState();
+    renderTabs();
+    renderCells();
+    showToast('Loaded Polyglot Demo Notebook!');
   }
 
   function getActiveNotebook() {
@@ -2810,6 +2821,11 @@
     };
   }
 
+  const btnLoadExamples = document.getElementById('btnLoadExamples');
+  if (btnLoadExamples) {
+    btnLoadExamples.onclick = loadStarterNotebook;
+  }
+
   // --------------------------------------------------------------------------
   // Layout Width Controller (Full Width vs Centered)
   // --------------------------------------------------------------------------
@@ -3046,6 +3062,7 @@
   const COMMANDS = [
     { title: 'New Notebook', category: 'File', action: function() { document.getElementById('btnAddTab').click(); } },
     { title: 'Open Notebook', category: 'File', action: function() { openNotebookNativeOrFallback(); } },
+    { title: 'Load Polyglot Demo Notebook', category: 'File', action: function() { loadStarterNotebook(); } },
     { title: 'Save Notebook', category: 'File', shortcut: 'Ctrl+S', action: function() { saveNotebookNativeOrFallback(false); } },
     { title: 'Run All Cells', category: 'Run', shortcut: 'Shift+F5', action: function() { document.getElementById('btnRunAll').click(); } },
     { title: 'Clear All Outputs', category: 'Run', action: function() { document.getElementById('btnClearAllOutputs').click(); } },
