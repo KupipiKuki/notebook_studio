@@ -1110,6 +1110,83 @@
     to { transform: rotate(360deg); }
   }
 
+
+  /* Stage 4: Command Palette */
+  .cmd-palette-overlay {
+    display: none;
+    position: fixed;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.45);
+    z-index: 2500;
+    align-items: flex-start;
+    justify-content: center;
+    padding-top: 12vh;
+  }
+  .cmd-palette-overlay.show { display: flex; }
+  .cmd-palette {
+    width: 620px;
+    max-width: 92vw;
+    background: var(--bg-panel);
+    border: 1px solid var(--border-strong);
+    border-radius: 12px;
+    box-shadow: var(--shadow-xl);
+    overflow: hidden;
+  }
+  #cmdPaletteInput {
+    width: 100%;
+    padding: 14px 18px;
+    border: none;
+    border-bottom: 1px solid var(--border);
+    background: var(--bg-surface);
+    color: var(--text-primary);
+    font-family: var(--font-ui);
+    font-size: 15px;
+    outline: none;
+  }
+  .cmd-palette-list { max-height: 320px; overflow-y: auto; }
+  .cmd-item {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+    padding: 10px 16px;
+    cursor: pointer;
+    font-size: 13.5px;
+    color: var(--text-primary);
+  }
+  .cmd-item:hover { background: var(--bg-surface-hover); }
+  .cmd-item.active { background: var(--accent-light); color: var(--accent); }
+  .cmd-item .cmd-item-label { flex: 1; }
+  .cmd-item .cmd-item-meta { display: flex; gap: 8px; align-items: center; }
+  .cmd-item .cmd-badge {
+    font-size: 10.5px;
+    padding: 2px 8px;
+    border-radius: 999px;
+    background: var(--bg-surface);
+    color: var(--text-secondary);
+    border: 1px solid var(--border);
+    text-transform: uppercase;
+    letter-spacing: 0.4px;
+  }
+  .cmd-item .cmd-shortcut {
+    font-family: var(--font-mono);
+    font-size: 11px;
+    color: var(--text-muted);
+  }
+  .cmd-palette-hint {
+    padding: 8px 16px;
+    font-size: 11px;
+    color: var(--text-muted);
+    border-top: 1px solid var(--border);
+    background: var(--bg-surface);
+  }
+  .cmd-empty {
+    padding: 18px 16px;
+    font-size: 13px;
+    color: var(--text-muted);
+    text-align: center;
+  }
+
   /* Hidden file input */
   #fileInput { display: none; }
 </style>
@@ -1172,6 +1249,7 @@
       <span>🔍</span>
       <span>Variables</span>
     </button>
+    <button class="btn" id="btnCommandPalette" title="Command Palette (F1 / Ctrl+Shift+P)">⌘ Commands</button>
     <button class="btn btn-icon" id="btnThemeToggle" title="Toggle Light / Dark Theme">
       <svg class="icon" id="themeIcon" viewBox="0 0 24 24"><path d="M12 3c-4.97 0-9 4.03-9 9s4.03 9 9 9 9-4.03 9-9c0-.46-.04-.92-.1-1.36-.98 1.37-2.58 2.26-4.4 2.26-2.98 0-5.4-2.42-5.4-5.4 0-1.81.89-3.42 2.26-4.4-.44-.06-.9-.1-1.36-.1z"/></svg>
     </button>
@@ -1304,6 +1382,15 @@
 
 <!-- Toast message -->
 <div class="toast" id="toastMessage"></div>
+
+<!-- Stage 4: Command Palette Modal (F1 / Ctrl+Shift+P) -->
+<div class="cmd-palette-overlay" id="commandPaletteModal">
+  <div class="cmd-palette">
+    <input type="text" id="cmdPaletteInput" placeholder="Type a command or search actions..." autocomplete="off" spellcheck="false">
+    <div class="cmd-palette-list" id="cmdPaletteList"></div>
+    <div class="cmd-palette-hint">↑ ↓ navigate · Enter execute · Esc close</div>
+  </div>
+</div>
 
 <script>
 (function() {
@@ -1781,6 +1868,7 @@
           '<span class="cell-time-badge">' + timeBadgeText + '</span>' +
         '</div>' +
         '<div class="cell-header-right">' +
+          '<button class="cell-action-btn" data-action="send-notepad" title="Send Cell Code to Notepad++ Studio">↗ N++</button>' +
           '<button class="cell-action-btn" data-action="move-up" title="Move Cell Up">↑</button>' +
           '<button class="cell-action-btn" data-action="move-down" title="Move Cell Down">↓</button>' +
           '<button class="cell-action-btn" data-action="copy" title="Copy Cell Code">📋</button>' +
@@ -1867,7 +1955,9 @@
           const action = btn.dataset.action;
           if (action === 'move-up') moveCell(cell.id, -1);
           else if (action === 'move-down') moveCell(cell.id, 1);
-          else if (action === 'copy') {
+          else if (action === 'send-notepad') {
+            sendCellToNotepad(cell, cm);
+          } else if (action === 'copy') {
             navigator.clipboard.writeText(cm.getValue()).then(function() { showToast('Cell code copied to clipboard'); });
           } else if (action === 'clear-output') {
             outputBox.innerHTML = '';
@@ -2523,7 +2613,7 @@
     if (ctrl && e.key.toLowerCase() === 's') {
       e.preventDefault();
       saveState();
-      showToast('Notebook state saved');
+      saveNotebookNativeOrFallback(false);
     } else if (e.key === 'Escape') {
       toggleErrorLog(false);
       exportDropdown.classList.remove('show');
@@ -2756,6 +2846,336 @@
   }
 
   // --------------------------------------------------------------------------
+  // Stage 4.1: Native Local Disk Read/Write (File System Access API)
+  // --------------------------------------------------------------------------
+  const fileHandles = new Map();
+
+  async function openNotebookNativeOrFallback() {
+    if (!('showOpenFilePicker' in window)) {
+      document.getElementById('fileInput').click();
+      return;
+    }
+    let handles;
+    try {
+      handles = await window.showOpenFilePicker({ multiple: false });
+    } catch (err) {
+      if (err && err.name === 'AbortError') return;
+      document.getElementById('fileInput').click();
+      return;
+    }
+    for (const handle of handles) {
+      try {
+        const file = await handle.getFile();
+        const text = await file.text();
+        importNotebookText(file.name, text);
+        fileHandles.set(activeNotebookId, handle);
+        showToast('Opened notebook: ' + file.name);
+      } catch (err) {
+        logError('Open', 'Failed to open file: ' + err.message);
+        showToast('Error opening file: ' + err.message);
+      }
+    }
+  }
+
+  function importNotebookText(fileName, text) {
+    let nb;
+    if (fileName.endsWith('.ipynb')) {
+      const ipynb = JSON.parse(text);
+      const cells = [];
+      (ipynb.cells || []).forEach(function(c) {
+        const content = Array.isArray(c.source) ? c.source.join('') : c.source;
+        const lang = c.cell_type === 'markdown' ? 'markdown' : 'python';
+        cells.push(createCell(lang, content, c.cell_type));
+      });
+      nb = createNotebook(fileName.replace('.ipynb', '.nb'), cells);
+    } else if (fileName.endsWith('.json') || fileName.endsWith('.nb')) {
+      const parsed = JSON.parse(text);
+      if (parsed.cells) {
+        nb = createNotebook(fileName, parsed.cells);
+      } else {
+        nb = createNotebook(fileName, [createCell('json', text)]);
+      }
+    } else {
+      nb = createNotebook(fileName, [createCell('markdown', text, 'markdown')]);
+    }
+    notebooks.push(nb);
+    activeNotebookId = nb.id;
+    saveState();
+    renderTabs();
+    renderCells();
+  }
+
+  function downloadNotebookBackup() {
+    const nb = getActiveNotebook();
+    if (!nb) return;
+    const jsonStr = JSON.stringify(nb, null, 2);
+    downloadFile(jsonStr, nb.name.endsWith('.nb') || nb.name.endsWith('.json') ? nb.name : nb.name + '.nb', 'application/json');
+    showToast('Notebook saved and downloaded');
+  }
+
+  async function saveNotebookNativeOrFallback(forceSaveAs) {
+    const nb = getActiveNotebook();
+    if (!nb) return;
+    saveState();
+    const jsonStr = JSON.stringify(nb, null, 2);
+
+    if (!forceSaveAs && fileHandles.has(activeNotebookId)) {
+      const handle = fileHandles.get(activeNotebookId);
+      try {
+        const writable = await handle.createWritable();
+        await writable.write(jsonStr);
+        await writable.close();
+        showToast('Saved directly to disk: ' + handle.name);
+      } catch (err) {
+        if (err && err.name === 'AbortError') return;
+        showToast('Disk write failed, falling back to download');
+        downloadNotebookBackup();
+      }
+      return;
+    }
+
+    if (forceSaveAs && ('showSaveFilePicker' in window)) {
+      try {
+        const suggested = nb.name.endsWith('.nb') || nb.name.endsWith('.json') ? nb.name : nb.name + '.nb';
+        const handle = await window.showSaveFilePicker({ suggestedName: suggested });
+        const writable = await handle.createWritable();
+        await writable.write(jsonStr);
+        await writable.close();
+        fileHandles.set(activeNotebookId, handle);
+        nb.name = handle.name;
+        renderTabs();
+        saveState();
+        showToast('Saved directly to disk: ' + handle.name);
+      } catch (err) {
+        if (err && err.name === 'AbortError') return;
+        showToast('Save As failed, falling back to download');
+        downloadNotebookBackup();
+      }
+      return;
+    }
+
+    downloadNotebookBackup();
+  }
+
+  document.getElementById('btnOpenNotebook').onclick = function() {
+    openNotebookNativeOrFallback();
+  };
+
+  document.getElementById('btnSaveNotebook').onclick = function() {
+    saveNotebookNativeOrFallback(false);
+  };
+
+  // --------------------------------------------------------------------------
+  // Stage 4.2: Cross-Studio BroadcastChannel & Transfer Queue (gemini_studio_bus)
+  // --------------------------------------------------------------------------
+  const studioBus = typeof BroadcastChannel !== 'undefined' ? new BroadcastChannel('gemini_studio_bus') : null;
+  const TRANSFER_QUEUE_KEY = 'gemini_studio_transfer_queue_v1';
+  const STUDIO_APP = 'notebook';
+
+  function readTransferQueue() {
+    try {
+      const raw = localStorage.getItem(TRANSFER_QUEUE_KEY);
+      const list = raw ? JSON.parse(raw) : [];
+      return Array.isArray(list) ? list : [];
+    } catch (e) {
+      return [];
+    }
+  }
+
+  function writeTransferQueue(list) {
+    try {
+      localStorage.setItem(TRANSFER_QUEUE_KEY, JSON.stringify(list.slice(-10)));
+    } catch (e) {}
+  }
+
+  function sendToStudio(targetApp, payload) {
+    const message = {
+      id: uid(),
+      targetApp: targetApp,
+      title: payload.title,
+      language: payload.language || 'python',
+      content: payload.content,
+      timestamp: Date.now()
+    };
+    const queue = readTransferQueue();
+    queue.push(message);
+    writeTransferQueue(queue);
+    if (studioBus) {
+      try { studioBus.postMessage(message); } catch (e) {}
+    }
+    showToast('Sent "' + message.title + '" to ' + targetApp.toUpperCase() + ' Studio!');
+  }
+
+  function sendCellToNotepad(cell, cm) {
+    const content = cm ? cm.getValue() : (cell.content || '');
+    sendToStudio('notepad', { title: (cell.language || 'code') + '_cell.txt', language: cell.language || 'text', content: content });
+  }
+
+  function handleIncomingTransfer(payload) {
+    if (!payload || payload.targetApp !== STUDIO_APP) return;
+    const queue = readTransferQueue().filter(function(item) { return item.id !== payload.id; });
+    writeTransferQueue(queue);
+    const nb = getActiveNotebook();
+    if (!nb) return;
+    const lang = payload.language || 'python';
+    const newCell = createCell(lang, payload.content || '', lang === 'markdown' ? 'markdown' : 'code');
+    nb.cells.push(newCell);
+    saveState();
+    renderCells();
+    const inst = cellInstances.get(newCell.id);
+    if (inst && inst.card && inst.card.scrollIntoView) {
+      inst.card.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    }
+    showToast('Imported "' + (payload.title || 'Untitled') + '" from Studio Bus');
+  }
+
+  function checkPendingTransfers() {
+    readTransferQueue()
+      .filter(function(item) { return item.targetApp === STUDIO_APP; })
+      .forEach(handleIncomingTransfer);
+  }
+
+  if (studioBus) {
+    studioBus.onmessage = function(e) { handleIncomingTransfer(e.data); };
+  }
+  window.addEventListener('focus', checkPendingTransfers);
+
+  // --------------------------------------------------------------------------
+  // Stage 4.3: Unified Command Palette (F1 / Ctrl+K / Ctrl+Shift+P)
+  // --------------------------------------------------------------------------
+  const COMMANDS = [
+    { title: 'New Notebook', category: 'File', action: function() { document.getElementById('btnAddTab').click(); } },
+    { title: 'Open Notebook', category: 'File', action: function() { openNotebookNativeOrFallback(); } },
+    { title: 'Save Notebook', category: 'File', shortcut: 'Ctrl+S', action: function() { saveNotebookNativeOrFallback(false); } },
+    { title: 'Run All Cells', category: 'Run', shortcut: 'Shift+F5', action: function() { document.getElementById('btnRunAll').click(); } },
+    { title: 'Clear All Outputs', category: 'Run', action: function() { document.getElementById('btnClearAllOutputs').click(); } },
+    { title: 'Toggle Variable Inspector', category: 'View', action: function() { toggleVarInspector(); } },
+    { title: 'Add Python Cell', category: 'Insert', action: function() { addCellBelow((getActiveNotebook().cells.slice(-1)[0] || {}).id, 'python'); } },
+    { title: 'Add JavaScript Cell', category: 'Insert', action: function() { addCellBelow((getActiveNotebook().cells.slice(-1)[0] || {}).id, 'javascript'); } },
+    { title: 'Add SQL Cell', category: 'Insert', action: function() { addCellBelow((getActiveNotebook().cells.slice(-1)[0] || {}).id, 'sql'); } },
+    { title: 'Add Markdown Cell', category: 'Insert', action: function() { addCellBelow((getActiveNotebook().cells.slice(-1)[0] || {}).id, 'markdown'); } },
+    { title: 'Export Jupyter (.ipynb)', category: 'Export', action: function() { document.getElementById('exportIpynb').click(); } },
+    { title: 'Export HTML', category: 'Export', action: function() { document.getElementById('exportHtml').click(); } },
+    { title: 'Toggle Full/Centered Width', category: 'View', action: function() { document.getElementById('btnToggleWidth').click(); } },
+    { title: 'Toggle Light/Dark Theme', category: 'View', action: function() { document.getElementById('btnThemeToggle').click(); } }
+  ];
+
+  let cmdActiveIndex = 0;
+  let paletteFilteredCommands = [];
+
+  function fuzzyMatch(query, text) {
+    const q = query.toLowerCase();
+    const t = (text || '').toLowerCase();
+    if (t.includes(q)) return true;
+    let qi = 0;
+    for (let ti = 0; ti < t.length && qi < q.length; ti++) {
+      if (t[ti] === q[qi]) qi++;
+    }
+    return qi === q.length;
+  }
+
+  function renderPaletteList(filter) {
+    const list = document.getElementById('cmdPaletteList');
+    const filtered = COMMANDS.filter(function(cmd) {
+      return !filter || fuzzyMatch(filter, cmd.title) || fuzzyMatch(filter, cmd.category);
+    });
+    list.innerHTML = '';
+    if (!filtered.length) {
+      list.innerHTML = '<div class="cmd-empty">No matching commands</div>';
+      return [];
+    }
+    filtered.forEach(function(cmd, i) {
+      const item = document.createElement('div');
+      item.className = 'cmd-item' + (i === 0 ? ' active' : '');
+      item.innerHTML =
+        '<span class="cmd-item-label">' + escapeHtml(cmd.title) + '</span>' +
+        '<span class="cmd-item-meta">' +
+          '<span class="cmd-badge">' + escapeHtml(cmd.category) + '</span>' +
+          (cmd.shortcut ? '<span class="cmd-shortcut">' + escapeHtml(cmd.shortcut) + '</span>' : '') +
+        '</span>';
+      item.onclick = function() { executePaletteCommand(cmd); };
+      item.onmousemove = function() { setPaletteActive(i); };
+      list.appendChild(item);
+    });
+    cmdActiveIndex = 0;
+    return filtered;
+  }
+
+  function setPaletteActive(idx) {
+    if (!paletteFilteredCommands.length) return;
+    cmdActiveIndex = (idx + paletteFilteredCommands.length) % paletteFilteredCommands.length;
+    const items = document.querySelectorAll('#cmdPaletteList .cmd-item');
+    items.forEach(function(el, i) { el.classList.toggle('active', i === cmdActiveIndex); });
+    const active = items[cmdActiveIndex];
+    if (active && active.scrollIntoView) active.scrollIntoView({ block: 'nearest' });
+  }
+
+  function executePaletteCommand(cmd) {
+    closeCommandPalette();
+    if (cmd && typeof cmd.action === 'function') cmd.action();
+  }
+
+  function openCommandPalette() {
+    const modal = document.getElementById('commandPaletteModal');
+    const input = document.getElementById('cmdPaletteInput');
+    modal.classList.add('show');
+    input.value = '';
+    paletteFilteredCommands = renderPaletteList('');
+    setTimeout(function() { input.focus(); }, 30);
+  }
+
+  function closeCommandPalette() {
+    document.getElementById('commandPaletteModal').classList.remove('show');
+  }
+
+  function setupCommandPalette() {
+    const modal = document.getElementById('commandPaletteModal');
+    const input = document.getElementById('cmdPaletteInput');
+
+    document.getElementById('btnCommandPalette').onclick = openCommandPalette;
+
+    modal.addEventListener('click', function(e) {
+      if (e.target === modal) closeCommandPalette();
+    });
+
+    input.addEventListener('input', function() {
+      paletteFilteredCommands = renderPaletteList(input.value.trim());
+    });
+
+    input.addEventListener('keydown', function(e) {
+      if (e.key === 'ArrowDown') {
+        e.preventDefault();
+        setPaletteActive(cmdActiveIndex + 1);
+      } else if (e.key === 'ArrowUp') {
+        e.preventDefault();
+        setPaletteActive(cmdActiveIndex - 1);
+      } else if (e.key === 'Enter') {
+        e.preventDefault();
+        const cmd = paletteFilteredCommands[cmdActiveIndex];
+        if (cmd) executePaletteCommand(cmd);
+      } else if (e.key === 'Escape') {
+        e.preventDefault();
+        closeCommandPalette();
+      }
+    });
+
+    document.addEventListener('keydown', function(e) {
+      if (e.key === 'F1') {
+        e.preventDefault();
+        openCommandPalette();
+      } else if ((e.ctrlKey || e.metaKey) && e.shiftKey && e.key.toLowerCase() === 'p') {
+        e.preventDefault();
+        openCommandPalette();
+      } else if ((e.ctrlKey || e.metaKey) && !e.shiftKey && e.key.toLowerCase() === 'k') {
+        e.preventDefault();
+        openCommandPalette();
+      } else if (e.key === 'Escape' && modal.classList.contains('show')) {
+        closeCommandPalette();
+      }
+    });
+  }
+
+  // --------------------------------------------------------------------------
   // Application Bootstrap
   // --------------------------------------------------------------------------
   const savedTheme = localStorage.getItem('np_theme') || 'dark';
@@ -2766,6 +3186,8 @@
   renderCells();
   updateLayoutWidthUI();
   renderErrorLogUI();
+  setupCommandPalette();
+  checkPendingTransfers();
 
 })();
 </script>
