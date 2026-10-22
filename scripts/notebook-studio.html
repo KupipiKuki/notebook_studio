@@ -29,6 +29,7 @@
 
 <!-- Marked for Markdown Parsing -->
 <script src="https://cdnjs.cloudflare.com/ajax/libs/marked/12.0.2/marked.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/dompurify/3.0.9/purify.min.js"></script>
 
 <style>
   :root {
@@ -1461,7 +1462,8 @@
       localStorage.setItem('np_notebook_state', JSON.stringify(payload));
       setSaveStatus(false);
     } catch (e) {
-      console.warn('Failed to save notebook state:', e);
+      logError('Storage', 'Failed to save notebook state: ' + e.message, '');
+      showToast('Storage warning: ' + e.message);
     }
   }
 
@@ -1687,6 +1689,10 @@
         cell.type = newLang === 'markdown' ? 'markdown' : 'code';
         const newMode = MODE_MAP[newLang] || 'javascript';
         cm.setOption('mode', newMode);
+        if (newLang !== 'markdown') {
+          const editorWrap = cellCard.querySelector('.cell-editor-wrap');
+          if (editorWrap) editorWrap.style.display = 'block';
+        }
         saveState();
       };
 
@@ -1851,7 +1857,7 @@
       } else if (lang === 'yaml') {
         executeYaml(code, outputEl);
       } else if (lang === 'markdown') {
-        executeMarkdown(code, outputEl);
+        executeMarkdown(code, outputEl, inst);
       }
 
       const elapsed = Math.round(performance.now() - startTime);
@@ -2025,9 +2031,31 @@
     }
   }
 
-  function executeMarkdown(code, outputEl) {
-    const renderedHtml = marked.parse(code || '');
-    outputEl.innerHTML = '<div class="markdown-rendered-view">' + renderedHtml + '</div>';
+  function executeMarkdown(code, outputEl, inst) {
+    let renderedHtml = marked.parse(code || '');
+    if (typeof DOMPurify !== 'undefined') {
+      renderedHtml = DOMPurify.sanitize(renderedHtml);
+    }
+    outputEl.innerHTML = '<div class="markdown-rendered-view" title="Double-click to edit Markdown">' + renderedHtml + '</div>';
+
+    if (code.trim().length > 0 && inst && inst.card) {
+      const editorWrap = inst.card.querySelector('.cell-editor-wrap');
+      if (editorWrap) editorWrap.style.display = 'none';
+    }
+
+    const renderedView = outputEl.querySelector('.markdown-rendered-view');
+    if (renderedView) {
+      renderedView.ondblclick = function() {
+        if (inst && inst.card) {
+          const editorWrap = inst.card.querySelector('.cell-editor-wrap');
+          if (editorWrap) editorWrap.style.display = 'block';
+        }
+        if (inst && inst.editor) {
+          inst.editor.focus();
+          inst.editor.refresh();
+        }
+      };
+    }
   }
 
   document.getElementById('btnRunAll').onclick = async function() {
