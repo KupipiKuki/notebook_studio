@@ -19,6 +19,7 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/mode/css/css.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/mode/htmlmixed/htmlmixed.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/mode/yaml/yaml.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/mode/sql/sql.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/mode/markdown/markdown.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/addon/edit/closebrackets.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/addon/edit/matchbrackets.min.js"></script>
@@ -736,6 +737,141 @@
     color: #fff;
   }
 
+  /* Matplotlib Inline Plot Output */
+  .output-plot img {
+    max-width: 100%;
+    border-radius: 6px;
+    margin-top: 8px;
+    border: 1px solid var(--border);
+  }
+
+  /* SQL Result Table */
+  .sql-result-table {
+    border-collapse: collapse;
+    width: 100%;
+    margin-top: 8px;
+    font-size: 12px;
+  }
+  .sql-result-table th, .sql-result-table td {
+    border: 1px solid var(--border);
+    padding: 6px 10px;
+    text-align: left;
+  }
+  .sql-result-table th {
+    background: var(--bg-surface);
+    font-weight: 600;
+    color: var(--text-primary);
+  }
+  .sql-result-table tr:nth-child(even) td {
+    background: var(--bg-surface);
+  }
+
+  /* Variable Inspector Drawer */
+  .var-inspector-drawer {
+    width: 280px;
+    flex-shrink: 0;
+    background: var(--bg-panel);
+    border-left: 1px solid var(--border);
+    display: none;
+    flex-direction: column;
+    z-index: 15;
+    overflow: hidden;
+  }
+  .var-inspector-drawer.open {
+    display: flex;
+  }
+  .var-inspector-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 8px 12px;
+    background: var(--bg-surface);
+    border-bottom: 1px solid var(--border);
+    gap: 6px;
+  }
+  .var-inspector-title {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 12.5px;
+    font-weight: 700;
+    color: var(--text-primary);
+  }
+  .var-inspector-body {
+    flex: 1;
+    overflow-y: auto;
+    padding: 8px;
+  }
+  .var-item {
+    padding: 6px 8px;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    margin-bottom: 6px;
+    background: var(--bg-surface);
+    font-size: 11.5px;
+  }
+  .var-item-name {
+    font-family: var(--font-mono);
+    font-weight: 600;
+    color: var(--accent);
+  }
+  .var-item-meta {
+    display: flex;
+    gap: 6px;
+    align-items: center;
+    margin-top: 2px;
+  }
+  .var-item-type {
+    color: var(--warning);
+    font-family: var(--font-mono);
+    font-size: 10.5px;
+  }
+  .var-item-lang {
+    font-size: 10px;
+    font-weight: 700;
+    padding: 1px 6px;
+    border-radius: 999px;
+    background: var(--accent-light);
+    color: var(--accent);
+    text-transform: uppercase;
+  }
+  .var-item-preview {
+    color: var(--text-secondary);
+    font-family: var(--font-mono);
+    font-size: 10.5px;
+    white-space: pre-wrap;
+    word-break: break-word;
+    margin-top: 3px;
+  }
+  .var-inspector-empty {
+    color: var(--text-muted);
+    font-size: 11.5px;
+    padding: 12px 8px;
+    text-align: center;
+  }
+
+  /* Package Installer Group */
+  .pkg-install-group {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+  .pkg-install-input {
+    padding: 4px 9px;
+    font-size: 11.5px;
+    font-family: var(--font-mono);
+    border-radius: 5px;
+    border: 1px solid var(--border);
+    background: var(--bg-panel);
+    color: var(--text-primary);
+    outline: none;
+    width: 240px;
+    transition: border-color 0.15s;
+  }
+  .pkg-install-input:focus {
+    border-color: var(--accent);
+  }
+
   /* ==========================================================================
      Error Log Drawer (Locked size, Clearable, exactly as in Markdown Viewer)
      ========================================================================== */
@@ -1032,6 +1168,10 @@
       <svg class="icon" viewBox="0 0 24 24"><path d="M4 4h16v16H4V4zm2 2v12h12V6H6zm3 3h6v2H9V9zm0 4h6v2H9v-2z"/></svg>
       <span id="btnToggleWidthText">Full Width</span>
     </button>
+    <button class="btn" id="btnToggleVarInspector" title="Toggle Variable Inspector">
+      <span>🔍</span>
+      <span>Variables</span>
+    </button>
     <button class="btn btn-icon" id="btnThemeToggle" title="Toggle Light / Dark Theme">
       <svg class="icon" id="themeIcon" viewBox="0 0 24 24"><path d="M12 3c-4.97 0-9 4.03-9 9s4.03 9 9 9 9-4.03 9-9c0-.46-.04-.92-.1-1.36-.98 1.37-2.58 2.26-4.4 2.26-2.98 0-5.4-2.42-5.4-5.4 0-1.81.89-3.42 2.26-4.4-.44-.06-.9-.1-1.36-.1z"/></svg>
     </button>
@@ -1052,6 +1192,7 @@
 <!-- ==========================================================================
      Main Notebook Workspace
      ========================================================================== -->
+<div style="flex:1; display:flex; min-height:0;">
 <main class="workspace" id="workspace">
   <div class="notebook-container">
     
@@ -1073,9 +1214,14 @@
           <button class="quick-add-btn" data-lang="json">📦 JSON</button>
           <button class="quick-add-btn" data-lang="yaml">📄 YAML</button>
           <button class="quick-add-btn" data-lang="markdown">📝 Markdown</button>
+          <button class="quick-add-btn" data-lang="sql">🗄️ SQL</button>
         </div>
       </div>
       <div style="display:flex; align-items:center; gap: 8px;">
+        <div class="pkg-install-group">
+          <input type="text" id="pkgInstallInput" class="pkg-install-input" placeholder="Install PyPI pkg (e.g. numpy, matplotlib)...">
+          <button class="quick-add-btn" id="btnInstallPkg" title="Install a PyPI package via micropip">📦 Install</button>
+        </div>
         <span style="font-size: 11px; color: var(--text-muted); font-family: var(--font-mono);">Shift+Enter to Run</span>
       </div>
     </div>
@@ -1085,6 +1231,24 @@
 
   </div>
 </main>
+
+<!-- Variable Inspector Drawer (docked right) -->
+<aside class="var-inspector-drawer" id="varInspectorDrawer">
+  <div class="var-inspector-header">
+    <div class="var-inspector-title">
+      <span>🔍</span>
+      <span>Variable Inspector</span>
+    </div>
+    <div style="display:flex; align-items:center; gap:4px;">
+      <button class="btn btn-sm" id="btnRefreshVars" title="Refresh variables">Refresh</button>
+      <button class="btn btn-sm btn-icon" id="btnCloseVarInspector" title="Close Variable Inspector">✕</button>
+    </div>
+  </div>
+  <div class="var-inspector-body" id="varInspectorBody">
+    <div class="var-inspector-empty" id="varInspectorEmpty">No variables yet. Run a Python or JavaScript cell.</div>
+  </div>
+</aside>
+</div>
 
 <!-- ==========================================================================
      Error Log Drawer (Locked size, Clearable)
@@ -1386,7 +1550,8 @@
     css: 'css',
     json: { name: 'javascript', json: true },
     yaml: 'yaml',
-    markdown: 'markdown'
+    markdown: 'markdown',
+    sql: 'sql'
   };
 
   let notebooks = [];
@@ -1611,6 +1776,7 @@
             '<option value="json"' + (cell.language === 'json' ? ' selected' : '') + '>📦 JSON</option>' +
             '<option value="yaml"' + (cell.language === 'yaml' ? ' selected' : '') + '>📄 YAML</option>' +
             '<option value="markdown"' + (cell.language === 'markdown' ? ' selected' : '') + '>📝 Markdown</option>' +
+            '<option value="sql"' + (cell.language === 'sql' ? ' selected' : '') + '>🗄️ SQL</option>' +
           '</select>' +
           '<span class="cell-time-badge">' + timeBadgeText + '</span>' +
         '</div>' +
@@ -1728,6 +1894,7 @@
           '<button class="btn-add-mini" data-lang="json">+ JSON</button>' +
           '<button class="btn-add-mini" data-lang="yaml">+ YAML</button>' +
           '<button class="btn-add-mini" data-lang="markdown">+ Markdown</button>' +
+          '<button class="btn-add-mini" data-lang="sql">+ SQL</button>' +
         '</div>';
 
       adder.querySelectorAll('.btn-add-mini').forEach(function(b) {
@@ -1804,7 +1971,7 @@
     renderCells();
   }
 
-  document.querySelectorAll('.quick-add-btn').forEach(function(btn) {
+  document.querySelectorAll('.quick-add-btn[data-lang]').forEach(function(btn) {
     btn.onclick = function() {
       const lang = btn.dataset.lang;
       const nb = getActiveNotebook();
@@ -1858,6 +2025,8 @@
         executeYaml(code, outputEl);
       } else if (lang === 'markdown') {
         executeMarkdown(code, outputEl, inst);
+      } else if (lang === 'sql') {
+        await executeSql(code, outputEl);
       }
 
       const elapsed = Math.round(performance.now() - startTime);
@@ -1879,6 +2048,7 @@
     } finally {
       runBtn.classList.remove('running');
       saveState();
+      updateVariableInspector();
     }
   }
 
@@ -1886,13 +2056,123 @@
     activeExecutingCellOutput = outputEl;
     const py = await getPyodide();
     try {
+      if (/matplotlib|plt\./.test(code)) {
+        await py.loadPackage('matplotlib');
+        await py.runPythonAsync('import matplotlib; matplotlib.use("AGG")');
+      }
       const result = await py.runPythonAsync(code);
       if (result !== undefined && result !== null) {
         appendCellOutput(outputEl, 'Out: ' + String(result), 'return');
       }
+      const plotsJson = await captureMatplotlibFigures(py);
+      if (plotsJson && plotsJson.length) {
+        plotsJson.forEach(function(b64) {
+          const plotDiv = document.createElement('div');
+          plotDiv.className = 'output-plot';
+          const img = document.createElement('img');
+          img.src = 'data:image/png;base64,' + b64;
+          outputEl.appendChild(plotDiv);
+          plotDiv.appendChild(img);
+        });
+      }
     } finally {
       activeExecutingCellOutput = null;
     }
+  }
+
+  async function captureMatplotlibFigures(py) {
+    try {
+      const code = [
+        'import io, base64, json',
+        'import matplotlib.pyplot as _plt',
+        '_figs = []',
+        'for _num in _plt.get_fignums():',
+        '    _fig = _plt.figure(_num)',
+        '    _buf = io.BytesIO()',
+        '    _fig.savefig(_buf, format="png", dpi=120, bbox_inches="tight")',
+        '    _buf.seek(0)',
+        '    _figs.append(base64.b64encode(_buf.getvalue()).decode("utf-8"))',
+        '_plt.close("all")',
+        'json.dumps(_figs)'
+      ].join('\n');
+      const res = await py.runPythonAsync(code);
+      return JSON.parse(String(res));
+    } catch (e) {
+      return null;
+    }
+  }
+
+  let sqlJsDb = null;
+  let sqlJsInitPromise = null;
+
+  function loadScriptOnce(src) {
+    return new Promise(function(resolve, reject) {
+      if (document.querySelector('script[data-src="' + src + '"]')) {
+        resolve();
+        return;
+      }
+      const s = document.createElement('script');
+      s.src = src;
+      s.setAttribute('data-src', src);
+      s.onload = resolve;
+      s.onerror = function() { reject(new Error('Failed to load script: ' + src)); };
+      document.head.appendChild(s);
+    });
+  }
+
+  async function initSqlJsEngine() {
+    if (sqlJsDb) return sqlJsDb;
+    if (sqlJsInitPromise) return sqlJsInitPromise;
+    sqlJsInitPromise = (async function() {
+      await loadScriptOnce('https://cdnjs.cloudflare.com/ajax/libs/sql.js/1.10.3/sql-wasm.js');
+      const SQL = await window.initSqlJs({
+        locateFile: function(file) {
+          return 'https://cdnjs.cloudflare.com/ajax/libs/sql.js/1.10.3/' + file;
+        }
+      });
+      sqlJsDb = new SQL.Database();
+      return sqlJsDb;
+    })();
+    try {
+      return await sqlJsInitPromise;
+    } catch (err) {
+      sqlJsInitPromise = null;
+      throw err;
+    }
+  }
+
+  async function executeSql(code, outputEl) {
+    const db = await initSqlJsEngine();
+    const results = db.exec(code);
+    if (!results || results.length === 0) {
+      appendCellOutput(outputEl, '✓ SQL query executed successfully.', 'stdout');
+      return;
+    }
+    results.forEach(function(result) {
+      const table = document.createElement('table');
+      table.className = 'sql-result-table';
+      const thead = document.createElement('thead');
+      const headRow = document.createElement('tr');
+      (result.columns || []).forEach(function(col) {
+        const th = document.createElement('th');
+        th.textContent = col;
+        headRow.appendChild(th);
+      });
+      thead.appendChild(headRow);
+      table.appendChild(thead);
+      const tbody = document.createElement('tbody');
+      (result.values || []).forEach(function(row) {
+        const tr = document.createElement('tr');
+        row.forEach(function(val) {
+          const td = document.createElement('td');
+          td.textContent = val === null ? 'NULL' : String(val);
+          tr.appendChild(td);
+        });
+        tbody.appendChild(tr);
+      });
+      table.appendChild(tbody);
+      outputEl.appendChild(table);
+    });
   }
 
   async function executeJavaScript(code, outputEl) {
@@ -1926,8 +2206,8 @@
       return String(arg);
     }
 
-    const runner = new Function('console', 'return (async () => {\n' + code + '\n})();');
-    const result = await runner(customConsole);
+    const runner = new Function('console', 'nbVars', 'return (async () => {\n' + code + '\n})();');
+    const result = await runner(customConsole, window.nbVars);
 
     logs.forEach(function(l) { appendCellOutput(outputEl, l.msg, l.type); });
 
@@ -2282,6 +2562,151 @@
     const reason = e.reason;
     const msg = reason && reason.message ? reason.message : String(reason);
     logError('System', 'Unhandled Promise: ' + msg, '');
+  });
+
+  // --------------------------------------------------------------------------
+  // Variable Inspector & Environment Explorer (Stage 3A.1)
+  // --------------------------------------------------------------------------
+  window.nbVars = window.nbVars || {};
+  const PY_INTROSPECT_SNIPPET = [
+    'import json, types',
+    '_vars = []',
+    'for k, v in list(globals().items()):',
+    '    if k.startswith("_") or isinstance(v, (types.ModuleType, types.FunctionType, type)):',
+    '        continue',
+    '    try:',
+    '        _preview = repr(v)[:80]',
+    '    except Exception:',
+    '        _preview = "<unrepresentable>"',
+    '    _vars.append({"name": k, "lang": "python", "type": type(v).__name__, "preview": _preview})',
+    'json.dumps(_vars)'
+  ].join('\n');
+
+  async function updateVariableInspector() {
+    const drawer = document.getElementById('varInspectorDrawer');
+    if (!drawer || !drawer.classList.contains('open')) return;
+    const body = document.getElementById('varInspectorBody');
+    const emptyEl = document.getElementById('varInspectorEmpty');
+    if (!body) return;
+
+    const vars = [];
+
+    if (pyodideInstance) {
+      try {
+        const res = await pyodideInstance.runPythonAsync(PY_INTROSPECT_SNIPPET);
+        const pyVars = JSON.parse(String(res));
+        pyVars.forEach(function(v) { vars.push(v); });
+      } catch (err) {
+        logError('Python', 'Variable inspection failed: ' + err.message, '');
+      }
+    }
+
+    Object.keys(window.nbVars).forEach(function(name) {
+      let preview;
+      try {
+        preview = JSON.stringify(window.nbVars[name]).slice(0, 80);
+      } catch (e) {
+        preview = String(window.nbVars[name]).slice(0, 80);
+      }
+      vars.push({
+        name: name,
+        lang: 'js',
+        type: typeof window.nbVars[name],
+        preview: preview === undefined ? String(window.nbVars[name]).slice(0, 80) : preview
+      });
+    });
+
+    body.innerHTML = '';
+    if (vars.length === 0) {
+      body.appendChild(emptyEl);
+      emptyEl.style.display = '';
+      return;
+    }
+    emptyEl.style.display = 'none';
+    vars.forEach(function(v) {
+      const item = document.createElement('div');
+      item.className = 'var-item';
+      const nameEl = document.createElement('div');
+      nameEl.className = 'var-item-name';
+      nameEl.textContent = v.name;
+      const metaEl = document.createElement('div');
+      metaEl.className = 'var-item-meta';
+      const langEl = document.createElement('span');
+      langEl.className = 'var-item-lang';
+      langEl.textContent = v.lang;
+      const typeEl = document.createElement('span');
+      typeEl.className = 'var-item-type';
+      typeEl.textContent = v.type;
+      metaEl.appendChild(langEl);
+      metaEl.appendChild(typeEl);
+      const previewEl = document.createElement('div');
+      previewEl.className = 'var-item-preview';
+      previewEl.textContent = v.preview;
+      item.appendChild(nameEl);
+      item.appendChild(metaEl);
+      item.appendChild(previewEl);
+      body.appendChild(item);
+    });
+  }
+
+  function toggleVarInspector(force) {
+    const drawer = document.getElementById('varInspectorDrawer');
+    if (!drawer) return;
+    let open;
+    if (typeof force === 'boolean') {
+      open = force;
+    } else {
+      open = !drawer.classList.contains('open');
+    }
+    if (open) {
+      drawer.classList.add('open');
+      updateVariableInspector();
+    } else {
+      drawer.classList.remove('open');
+    }
+  }
+
+  document.getElementById('btnToggleVarInspector').onclick = function() { toggleVarInspector(); };
+  document.getElementById('btnCloseVarInspector').onclick = function() { toggleVarInspector(false); };
+  document.getElementById('btnRefreshVars').onclick = function() { updateVariableInspector(); };
+
+  // --------------------------------------------------------------------------
+  // Micropip Package Installer (Stage 3A.2)
+  // --------------------------------------------------------------------------
+  async function installPyPackage(pkgName) {
+    if (!pkgName) return;
+    const btnInstall = document.getElementById('btnInstallPkg');
+    btnInstall.disabled = true;
+    btnInstall.textContent = '⏳ Installing...';
+    try {
+      const py = await getPyodide();
+      await py.loadPackage('micropip');
+      const micropip = py.pyimport('micropip');
+      await micropip.install(pkgName);
+      showToast('Package installed: ' + pkgName);
+    } catch (err) {
+      logError('Python', 'Package install failed for "' + pkgName + '": ' + err.message, '');
+      showToast('Package install failed: ' + pkgName);
+    } finally {
+      btnInstall.disabled = false;
+      btnInstall.innerHTML = '📦 Install';
+    }
+  }
+
+  document.getElementById('btnInstallPkg').onclick = function() {
+    const input = document.getElementById('pkgInstallInput');
+    const pkg = (input.value || '').trim();
+    if (!pkg) {
+      showToast('Enter a package name first');
+      return;
+    }
+    installPyPackage(pkg);
+  };
+
+  document.getElementById('pkgInstallInput').addEventListener('keydown', function(e) {
+    if (e.key === 'Enter') {
+      document.getElementById('btnInstallPkg').click();
+    }
   });
 
   document.getElementById('statusErrorIndicator').onclick = function() { toggleErrorLog(); };
