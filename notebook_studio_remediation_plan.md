@@ -182,3 +182,68 @@ Start with **Phase 0**, then fix **Phase 1 data-integrity** and immediate P0 pas
 ## 13. Explicit review boundaries
 
 This is a **source inspection and implementation plan**; the reviewer inspected the source on `main`, the GitHub branch ancestry, PR summaries and Markdown Studio's published plan. No application execution, dependency-security audit, browser reproduction, visual check, actual patch, or regression result was conducted in this planning pass. Do not interpret any numbered finding as proof of an exploit or completed remediation.
+
+---
+
+## Architecture Addendum A — Server-centered Unified Studio Suite (November 8, 2026)
+
+**Decision status:** Preferred strategic direction selected by the project owner; implementation architecture remains **conditional on a measured architecture decision gate (AG0)**. This addendum is planning-only and does not authorize an immediate rewrite, monorepo conversion, or removal of standalone builds. It supplements rather than replaces all existing remediation findings, phase gates, source baselines, or in-progress Markdown Studio work.
+
+**Target:** One local-first Studio Launcher hosting Markdown Studio, Notebook Studio, and Notepad Studio as modular applications, with shared document/workspace services and an authenticated loopback backend. The default technical candidate is **Node.js/TypeScript** for launcher, API, orchestration, frontend build tooling and integration; **Python as an isolated optional worker** for Python execution and related computation. The final technology selection must be benchmarked against Python-first, static modular, and existing single-file options at AG0.
+
+### A1. Architecture decision phase — AG0 (before irreversible refactoring)
+
+- [ ] Capture current behavior, baseline versions, startup times, file round-trip fidelity, memory, dependency load, offline behavior, feature coverage, code duplication and security boundaries for all three apps. Use the existing G0 evidence standard.
+- [ ] Compare four concrete alternatives: (1) existing single-file apps with targeted fixes; (2) multi-file static apps with optional local server; (3) Python-first local service; (4) Node-first unified launcher with optional Python execution workers. Compare deployment/installation, Windows portability, offline startup, testability, API/file access, execution isolation, performance, upgrade/rollback, maintenance and packaging.
+- [ ] Build a **disposable, minimal proof of concept** outside production application paths: launch three unmodified app views, transfer a synthetic document, reopen it, save to an approved workspace, and shut down cleanly. This PoC requires separate implementation approval; it is not part of this documentation-only update.
+- [ ] Specify trust model: loopback-only binding, per-session random authentication secret or equivalent, origin/CSRF protections, strict CORS and WebSocket origin checks, no unrestricted filesystem endpoint, path traversal/symlink defenses, approved workspace roots, subprocess sandbox/resource limits, safe update mechanism, explicit consent before code execution.
+- [ ] Specify compatibility contract: document IDs, content types, language metadata, encodings/line endings, versioned messages, at-most-once insertion with durable deduplication, acknowledgments, conflict handling, autosave/recovery, file permissions and import/export semantics.
+- [ ] Decide distribution: developer Node runtime vs packaged local launcher, optional Python runtime, fully offline dependency bundling, standalone HTML fallback and whether a monorepo is warranted. Do not make a monorepo a prerequisite.
+- [ ] Produce an architecture decision record (ADR) with a weighted scorecard, cost estimates, migration risk register, rejected alternatives, ownership and explicit go/no-go approval.
+
+**Gate AG0:** Written ADR approved; measured baseline and PoC requirements recorded; no P0 data-integrity/security issue deferred solely for architectural migration. If the preferred candidate fails measurable constraints, revisit the decision rather than forcing migration.
+
+### A2. Proposed target architecture and boundaries
+
+```text
+Studio Launcher (local browser / optional packaged desktop shell)
+  ├── Markdown Studio UI (modular editor and preview)
+  ├── Notebook Studio UI (cells, execution and outputs)
+  └── Notepad Studio UI (text, search, diff and macros)
+            │
+  Shared client SDK / versioned API contract
+            │ authenticated loopback HTTP + WebSocket
+  Local Studio Service (Node.js/TypeScript candidate)
+  ├── Workspace + document service (atomic writes, backups, recovery)
+  ├── File access broker (explicit workspace scope and permissions)
+  ├── Transfer/event broker (ack, dedupe, replay, delivery status)
+  ├── Settings, themes, search and structured diagnostics
+  └── Execution supervisor (process isolation and cancellation)
+            ├── Python worker (optional, controlled)
+            └── other sandboxed runtime workers (only if needed)
+```
+
+Keep app-specific editing and rendering in separate modules. Avoid sharing incompatible editor internals merely to reduce duplicate code. A server alone does **not** make arbitrary notebook code safe: runtime isolation and OS permissions require independent verification. Preserve browser-side editing responsiveness and avoid requiring network/cloud accounts.
+
+### A3. Shared-suite roadmap and migration gates
+
+| Gate | Work package | Required evidence / exit |
+| --- | --- | --- |
+| **AG0** | Architecture decision and alternatives scorecard | Approved ADR, baseline metrics, portability/security acceptance criteria, migration budget and rollback plan. |
+| **MG1** | Contract-first foundation | Versioned schemas for documents, workspace, transfers, errors and capabilities; fixture-based compatibility tests across all three current apps. |
+| **MG2** | Modular extraction | Extract CSS/JS/assets and introduce tests/build pipeline **without behavior changes**; source maps, pinned dependencies, functional parity, no loss of standalone release path until explicitly approved. |
+| **MG3** | Local service and launcher | Loopback binding, authentication, origin/CSRF checks, safe filesystem broker, service startup/shutdown, health checks, offline packaging and no arbitrary path access; integrated smoke tests. |
+| **MG4** | Incremental application integration | Migrate **one app at a time** behind feature flags/adapters, with legacy and new modes tested against the same fixtures; no all-at-once rewrite. |
+| **MG5** | Shared workspace and Studio Bus replacement | Atomic file operations, crash recovery, versioned transfers, durable acknowledgments/dedupe, conflict behavior, old-message compatibility and multi-instance tests. |
+| **MG6** | Execution, security and resilience | Notebook execution isolation, resource limits, process lifecycle, permission-denied cases, restart/recovery, large-file performance, threat-model test evidence. |
+| **MG7** | Release, rollback and distribution | Windows-focused packaging/installer or documented local setup, clean uninstall, offline startup, signed/reproducible artifacts where applicable, upgrade/migration/rollback and preserved user data. |
+
+**Migration order:** stabilize existing high-priority save/security paths; agree shared contracts; extract reusable modules; introduce launcher/service in parallel; migrate Notepad Studio as a lower-execution-risk pilot **only after AG0**, then Markdown Studio, then Notebook Studio execution components (or revise based on measured complexity). Existing Markdown Studio remediation can continue in its current branch; cherry-pick or adapt proven fixes rather than discarding them. No app is considered migrated until old/new exact-output regression fixtures pass.
+
+### A4. Repository strategy and deliverables
+
+**Default interim strategy:** keep all three repositories and their existing remediation branches; establish a fourth shared-suite/launcher repository only after AG0 approval. A monorepo remains an evaluated option, not a foregone conclusion. Publish shared contracts as a versioned package with compatibility matrix, semantic versioning, and CI testing all three applications. Do not create new repositories, modify app code or change default branches as part of this addendum.
+
+Deliverables: `studio_suite_architecture_adr.md`, `studio_suite_migration_roadmap.md`, API/document schema specification, threat model, compatibility matrix, baseline and benchmark report, proof-of-concept test plan, rollback and data-migration plan, packaging decision, and gate evidence index.
+
+**Cross-plan rule:** The existing Markdown G0–G6, Notebook G0–G6 and Notepad G0–G6 remain mandatory for the legacy application work. AG0/MG1–MG7 are additional **suite-wide** gates, not substitutes for defect closure. Any migration changing user data or execution trust boundaries requires explicit approval and a reversible path. Do not claim that an architectural gate has passed merely because this document defines it.
